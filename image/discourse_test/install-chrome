@@ -1,0 +1,13 @@
+#!/bin/bash
+set -e
+
+# https://googlechromelabs.github.io/chrome-for-testing/ doesn't provide
+# linux/arm64 binaries for chrome or chromedriver yet. Therefore on arm64, we
+# install chromium instead of chrome.
+if [ "$(dpkg --print-architecture)" = "arm64" ]; then
+  apt update && apt install -y chromium-driver
+else
+  echo "deb [arch=amd64 signed-by=/usr/share/keyrings/google-chrome.asc] https://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google.list &&\
+    apt update &&\
+    apt install -y google-chrome-stable
+fi

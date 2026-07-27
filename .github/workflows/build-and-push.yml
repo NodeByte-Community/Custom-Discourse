@@ -1,0 +1,123 @@
+name: Build and Push Custom Discourse Image
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'containers/app.yml'
+      - 'templates/**'
+      - 'image/**'
+      - 'launcher'
+      - '.github/workflows/build-and-push.yml'
+  workflow_dispatch:
+    inputs:
+      force_build:
+        description: 'Force rebuild even if no changes detected'
+        required: false
+        default: 'false'
+
+concurrency:
+  group: build-discourse-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository_owner }}/custom-discourse
+  BUILDKIT_PROGRESS: plain
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download launcher binary
+        run: |
+          BINDIR="bin"
+          package="${BINDIR}/launcher.tar.gz"
+          curl -s -o ${package} -L https://get.discourse.org/launcher/latest/launcher-linux-amd64.tar.gz
+          tar -zxf ${package} -C ${BINDIR}
+          rm ${package}
+          chmod +x bin/launcher
+          ls -la bin/
+
+      - name: Prepare real configuration from secrets
+        run: |
+          # The real app.yml with all credentials is stored as a GitHub Secret.
+          # This ensures the public repo only contains placeholder values,
+          # while the CI build uses real values that are never stored in the repo.
+          #
+          # GitHub Secret: APP_YML_REAL contains the complete app.yml with real values
+          #
+          # WARNING: Never commit the real app.yml to the public repository!
+          
+          echo "${{ secrets.APP_YML_REAL }}" > containers/app.yml
+          
+          # Verify the real config was written
+          if grep -q "YOUR_" containers/app.yml; then
+            echo "ERROR: Real app.yml still contains placeholders!"
+            echo "Please set the APP_YML_REAL secret in GitHub repository settings."
+            echo "Go to: Settings > Secrets and variables > Actions > New repository secret"
+            echo "Name: APP_YML_REAL"
+            echo "Value: (paste the full app.yml content with real values)"
+            exit 1
+          fi
+          
+          echo "Real configuration prepared successfully."
+
+      - name: Build Discourse image
+        run: |
+          bin/launcher build app \
+            --tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest \
+            --tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} \
+            --output=type=registry \
+            --metadata-file=/tmp/out.json
+
+      - name: Restore placeholder app.yml (security)
+        if: always()
+        run: |
+          # Always restore the placeholder version so secrets never leak into the repo
+          git checkout containers/app.yml || true
+          echo "Placeholder app.yml restored - no secrets in repository."
+
+      - name: Save image digest
+        id: metadata
+        if: always()
+        run: |
+          if [ -f /tmp/out.json ]; then
+            digest=$(jq -r '."containerimage.digest"' /tmp/out.json)
+            echo "digest=$digest"
+            echo "digest=$digest" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build summary
+        if: always()
+        run: |
+          echo "## Build Result" >> $GITHUB_STEP_SUMMARY
+          if [ -f /tmp/out.json ]; then
+            echo "Image pushed to: ${REGISTRY}/${IMAGE_NAME}:latest" >> $GITHUB_STEP_SUMMARY
+            echo "Digest: $(jq -r '."containerimage.digest"' /tmp/out.json)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "Build may have failed. Check logs above." >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Security Note" >> $GITHUB_STEP_SUMMARY
+          echo "The placeholder app.yml has been restored. No secrets are stored in the repository." >> $GITHUB_STEP_SUMMARY
