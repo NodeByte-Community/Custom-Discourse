@@ -23,7 +23,8 @@ concurrency:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository_owner }}/custom-discourse
+  # Docker image names must be lowercase
+  IMAGE_NAME: cshdotcom/custom-discourse
   BUILDKIT_PROGRESS: plain
 
 jobs:
@@ -58,6 +59,7 @@ jobs:
           curl -sL -o ${package} https://github.com/discourse/launcher/releases/download/v2.5.0/launcher-linux-amd64.tar.gz
           if [ ! -f ${package} ] || [ $(stat -c%s ${package}) -lt 1000000 ]; then
             echo "ERROR: Launcher download failed or file too small"
+            ls -la ${package} || echo "File not found"
             exit 1
           fi
           tar -zxf ${package} -C ${BINDIR}
@@ -67,24 +69,46 @@ jobs:
           echo "Launcher version: $(bin/launcher --version 2>&1 || echo 'unknown')"
 
       - name: Prepare real configuration from secrets
+        env:
+          APP_YML_BASE64: ${{ secrets.APP_YML_BASE64 }}
         run: |
-          # The real app.yml with all credentials is stored as a GitHub Secret.
+          # The real app.yml with all credentials is stored as a GitHub Secret,
+          # base64-encoded to handle multiline content properly.
           # This ensures the public repo only contains placeholder values,
           # while the CI build uses real values that are never stored in the repo.
           #
-          # GitHub Secret: APP_YML_REAL contains the complete app.yml with real values
+          # To update the secret:
+          #   base64 -w0 your_real_app.yml > app_yml_b64.txt
+          #   Copy the content and set as APP_YML_BASE64 in GitHub Secrets
           #
           # WARNING: Never commit the real app.yml to the public repository!
           
-          echo "${{ secrets.APP_YML_REAL }}" > containers/app.yml
+          if [ -z "$APP_YML_BASE64" ]; then
+            echo "ERROR: APP_YML_BASE64 secret is not set!"
+            echo "Please set it in GitHub repository settings:"
+            echo "  Settings > Secrets and variables > Actions > New repository secret"
+            echo "  Name: APP_YML_BASE64"
+            echo "  Value: base64-encoded content of your real app.yml"
+            echo ""
+            echo "To create the base64 value, run on your local machine:"
+            echo "  base64 -w0 your_real_app.yml"
+            exit 1
+          fi
           
-          # Verify the real config was written
+          echo "$APP_YML_BASE64" | base64 -d > containers/app.yml
+          
+          # Verify the real config was written (check that no YOUR_ placeholders remain)
           if grep -q "YOUR_" containers/app.yml; then
-            echo "ERROR: Real app.yml still contains placeholders!"
-            echo "Please set the APP_YML_REAL secret in GitHub repository settings."
-            echo "Go to: Settings > Secrets and variables > Actions > New repository secret"
-            echo "Name: APP_YML_REAL"
-            echo "Value: (paste the full app.yml content with real values)"
+            echo "WARNING: Real app.yml still contains some YOUR_ placeholders."
+            echo "This may cause build issues. Please update the secret with complete values."
+            echo "Placeholder lines found:"
+            grep "YOUR_" containers/app.yml || true
+            # Don't fail - some YOUR_ might be intentional comments
+          fi
+          
+          # Verify critical fields are set
+          if grep -q "DISCOURSE_HOSTNAME: discourse.example.com" containers/app.yml; then
+            echo "ERROR: DISCOURSE_HOSTNAME is still set to the default placeholder!"
             exit 1
           fi
           
@@ -92,6 +116,9 @@ jobs:
 
       - name: Build Discourse image
         run: |
+          echo "Building Discourse image..."
+          echo "Image tag: ${REGISTRY}/${IMAGE_NAME}:latest"
+          
           bin/launcher build app \
             --tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest \
             --tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} \

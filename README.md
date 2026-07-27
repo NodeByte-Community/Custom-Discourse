@@ -162,7 +162,7 @@ This means the image can be safely shared and distributed publicly without expos
 
 The image is automatically built and pushed to GitHub Container Registry (GHCR) when changes are pushed to the `main` branch. The workflow uses the official Discourse launcher binary to ensure compatibility.
 
-Image location: `ghcr.io/cshdotcom/custom-discourse:latest`
+Image location: `ghcr.io/cshdotcom/custom-discourse:latest` (private GHCR package)
 
 ## Data Persistence
 
