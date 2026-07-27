@@ -6,6 +6,7 @@ containers/*.private.yml
 containers/*.local.yml
 cids/*
 bin/*
+!bin/.gitkeep
 image/.build.out
 image/.build.hash
 image/.docker_temp_*

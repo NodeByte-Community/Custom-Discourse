@@ -52,12 +52,19 @@ jobs:
       - name: Download launcher binary
         run: |
           BINDIR="bin"
+          mkdir -p ${BINDIR}
           package="${BINDIR}/launcher.tar.gz"
-          curl -s -o ${package} -L https://get.discourse.org/launcher/latest/launcher-linux-amd64.tar.gz
+          echo "Downloading launcher binary..."
+          curl -sL -o ${package} https://github.com/discourse/launcher/releases/download/v2.5.0/launcher-linux-amd64.tar.gz
+          if [ ! -f ${package} ] || [ $(stat -c%s ${package}) -lt 1000000 ]; then
+            echo "ERROR: Launcher download failed or file too small"
+            exit 1
+          fi
           tar -zxf ${package} -C ${BINDIR}
           rm ${package}
           chmod +x bin/launcher
           ls -la bin/
+          echo "Launcher version: $(bin/launcher --version 2>&1 || echo 'unknown')"
 
       - name: Prepare real configuration from secrets
         run: |
