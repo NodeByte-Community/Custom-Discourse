@@ -7,7 +7,7 @@ A pre-built, customized Discourse Docker image with China-optimized mirrors, Clo
 - **Pre-built image**: No need to compile Discourse from source locally - just pull and run
 - **China-optimized**: Built with Chinese mirror sources for Ruby gems, npm packages, and GitHub proxy
 - **Cloudflare-ready**: Built-in nginx configuration for Cloudflare real-ip header support
-- **Curated plugins**: Includes 20+ community-selected Discourse plugins pre-installed
+- **Curated plugins**: Includes 28 community-selected Discourse plugins pre-installed
 - **No sensitive data in image**: All credentials are injected at runtime via environment variables - the image is safe to share publicly
 
 ## Quick Start (Docker Compose)
@@ -87,6 +87,8 @@ curl -s -L https://get.discourse.org/launcher/latest/launcher-linux-amd64.tar.gz
 
 The following plugins are pre-installed in the image:
 
+> **Note**: `discourse-solved-reminders-plugin` was removed from the build because it depends on `discourse-solved`, which is now bundled with Discourse core. Including it triggers the "bundled plugin check" error. The solved topic functionality is already available natively in Discourse.
+
 - discourse/docker_manager - Web-based upgrade manager
 - discourse/discourse-saved-searches - Saved search functionality
 - discourse/discourse-category-experts - Category expert system
@@ -104,7 +106,6 @@ The following plugins are pre-installed in the image:
 - discourse/discourse-video - Video embedding
 - discourse/discourse-tag-by-group - Group-based tagging
 - discourse/discourse-tag-topic-user-device - Device-specific tags
-- discourse/discourse-solved-reminders-plugin - Solved topic reminders
 - discourse/discourse-shared-edits - Collaborative editing
 - discourse/discourse-newsletter-integration - Newsletter integration
 - discourse/discourse-logster-transporter - Log transport
