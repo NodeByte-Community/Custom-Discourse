@@ -23,8 +23,8 @@ concurrency:
 
 env:
   REGISTRY: ghcr.io
-  # Docker image names must be lowercase
-  IMAGE_NAME: cshdotcom/custom-discourse
+  # Docker image names must be lowercase, use org namespace for permissions
+  IMAGE_NAME: nodebyte-community/custom-discourse
   BUILDKIT_PROGRESS: plain
 
 jobs:

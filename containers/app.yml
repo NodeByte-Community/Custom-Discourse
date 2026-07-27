@@ -63,6 +63,7 @@ hooks:
         cd: $home/plugins
         cmd:
           # Uncomment and customize the plugins you need
+          # Note: discourse-solved is now bundled with Discourse and should NOT be listed here
           - git clone https://github.com/discourse/docker_manager.git
           # - git clone https://github.com/discourse/discourse-saved-searches.git
           # - git clone https://github.com/discourse/discourse-category-experts.git

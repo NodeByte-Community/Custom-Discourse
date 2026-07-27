@@ -20,7 +20,7 @@ version: "3.8"
 
 services:
   discourse:
-    image: ghcr.io/cshdotcom/custom-discourse:latest  # Private GHCR package - requires auth
+    image: ghcr.io/nodebyte-community/custom-discourse:latest  # Private GHCR package - requires auth
     container_name: discourse_app
     restart: always
     shm_size: 512m
