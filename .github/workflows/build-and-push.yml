@@ -74,12 +74,13 @@ jobs:
         run: |
           # The real app.yml with all credentials is stored as a GitHub Secret,
           # base64-encoded to handle multiline content properly.
-          # This ensures the public repo only contains placeholder values,
-          # while the CI build uses real values that are never stored in the repo.
           #
-          # To update the secret:
-          #   base64 -w0 your_real_app.yml > app_yml_b64.txt
-          #   Copy the content and set as APP_YML_BASE64 in GitHub Secrets
+          # IMPORTANT: For CI builds, we must adapt the China-specific configuration
+          # because GitHub proxy mirrors (gh-proxy.org, mirror.ghproxy.com) don't work
+          # reliably from GitHub Actions runners. We:
+          #   1. Remove web.china.template.yml (gem/npm mirrors not needed in CI)
+          #   2. Replace v4.gh-proxy.org URLs with direct github.com URLs
+          #   3. Remove git URL rewrite for proxy
           #
           # WARNING: Never commit the real app.yml to the public repository!
           
@@ -97,13 +98,24 @@ jobs:
           
           echo "$APP_YML_BASE64" | base64 -d > containers/app.yml
           
-          # Verify the real config was written (check that no YOUR_ placeholders remain)
+          # Adapt configuration for CI environment:
+          # Remove China template (GitHub Actions runners don't need proxy mirrors)
+          sed -i '/web\.china\.template\.yml/d' containers/app.yml
+          
+          # Replace GitHub proxy URLs with direct URLs
+          # (v4.gh-proxy.org/https://github.com/ -> https://github.com/)
+          sed -i 's|https://v4\.gh-proxy\.org/https://github\.com/|https://github.com/|g' containers/app.yml
+          sed -i 's|https://mirror\.ghproxy\.com/https://github\.com/|https://github.com/|g' containers/app.yml
+          
+          # Remove git URL rewrite from hooks (if present from China template)
+          # This would be in the before_code hook section
+          sed -i '/git config --global url.*insteadOf/d' containers/app.yml
+          
+          # Verify the real config was written
           if grep -q "YOUR_" containers/app.yml; then
             echo "WARNING: Real app.yml still contains some YOUR_ placeholders."
-            echo "This may cause build issues. Please update the secret with complete values."
             echo "Placeholder lines found:"
             grep "YOUR_" containers/app.yml || true
-            # Don't fail - some YOUR_ might be intentional comments
           fi
           
           # Verify critical fields are set
@@ -112,7 +124,7 @@ jobs:
             exit 1
           fi
           
-          echo "Real configuration prepared successfully."
+          echo "Real configuration prepared successfully (adapted for CI)."
 
       - name: Build Discourse image
         run: |
